@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>生日快乐！</title>
+    <style>
+        body {
+            margin: 0;
+            background: black;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .text {
+            color: white;
+            font-family: "Microsoft YaHei", Arial, sans-serif;
+            font-size: 48px;
+            z-index: 1;
+            pointer-events: none;
+            text-align: center;
+            text-shadow: 0 0 10px #ff0043, 0 0 20px #ff0043, 0 0 30px #ff0043, 0 0 40px #ff0043;
+        }
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="text">生日快乐！🎂</div>
+    <canvas id="fireworks"></canvas>
+
+    <script>
+        const canvas = document.getElementById('fireworks');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        let fireworks = [];
+        let particles = [];
+
+        // 获取文字中心位置，锁定爆炸区域
+        const textElement = document.querySelector('.text');
+        let textCenterX, textCenterY, textRadius;
+        // 窗口大小变化时重新计算文字位置（适配缩放/全屏）
+        function calcTextPos() {
+            const textRect = textElement.getBoundingClientRect();
+            textCenterX = textRect.left + textRect.width / 2;
+            textCenterY = textRect.top + textRect.height / 2;
+            textRadius = Math.max(textRect.width, textRect.height) / 1.8; // 扩大爆炸区域，更饱满
+        }
+        calcTextPos();
+        window.addEventListener('resize', calcTextPos);
+
+        // 随机数工具
+        function random(min, max) {
+            return Math.random() * (max - min) + min;
+        }
+
+        // 烟花类：从四周随机生成，飞向文字周围
+        class Firework {
+            constructor() {
+                // 随机选择烟花生成的方向（上/下/左/右 屏幕边缘）
+                const side = Math.floor(random(0, 4));
+                switch(side) {
+                    case 0: // 屏幕顶部
+                        this.x = random(0, canvas.width);
+                        this.y = 0;
+                        break;
+                    case 1: // 屏幕底部
+                        this.x = random(0, canvas.width);
+                        this.y = canvas.height;
+                        break;
+                    case 2: // 屏幕左侧
+                        this.x = 0;
+                        this.y = random(0, canvas.height);
+                        break;
+                    case 3: // 屏幕右侧
+                        this.x = canvas.width;
+                        this.y = random(0, canvas.height);
+                        break;
+                }
+                // 爆炸目标：文字周围随机位置
+                this.targetX = random(textCenterX - textRadius, textCenterX + textRadius);
+                this.targetY = random(textCenterY - textRadius, textCenterY + textRadius);
+                // 烟花速度和角度
+                this.speed = random(3, 6); // 加快速度，更有冲击感
+                const angle = Math.atan2(this.targetY - this.y, this.targetX - this.x);
+                this.vx = Math.cos(angle) * this.speed;
+                this.vy = Math.sin(angle) * this.speed;
+                // 烟花颜色
+                this.hue = random(0, 360);
+                this.brightness = random(60, 80);
+                this.alpha = 1;
+                this.decay = random(0.008, 0.012);
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.alpha -= this.decay;
+                // 到达目标点，生成粒子并销毁烟花
+                const distance = Math.sqrt(Math.pow(this.targetX - this.x, 2) + Math.pow(this.targetY - this.y, 2));
+                if (distance < 8) {
+                    // 每个烟花生成更多粒子，更绚烂
+                    for (let i = 0; i < 120; i++) {
+                        particles.push(new Particle(this.targetX, this.targetY, this.hue));
+                    }
+                    return true;
+                }
+                return false;
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y);
+                ctx.lineTo(this.x - this.vx * 4, this.y - this.vy * 4);
+                ctx.lineWidth = 2; // 加粗烟花轨迹
+                ctx.strokeStyle = `hsla(${this.hue}, 100%, ${this.brightness}%, ${this.alpha})`;
+                ctx.stroke();
+            }
+        }
+
+        // 粒子类：烟花爆炸后的火花
+        class Particle {
+            constructor(x, y, hue) {
+                this.x = x;
+                this.y = y;
+                this.angle = random(0, Math.PI * 2);
+                this.speed = random(2, 7);
+                this.vx = Math.cos(this.angle) * this.speed;
+                this.vy = Math.sin(this.angle) * this.speed;
+                this.gravity = 0.06; // 轻微重力，粒子下落更自然
+                this.hue = hue;
+                this.brightness = random(60, 90);
+                this.alpha = 1;
+                this.decay = random(0.015, 0.03);
+                this.size = random(1.5, 3); // 粒子大小随机，更真实
+            }
+
+            update() {
+                this.vx *= 0.97;
+                this.vy *= 0.97;
+                this.vy += this.gravity;
+                this.x += this.vx;
+                this.y += this.vy;
+                this.alpha -= this.decay;
+                return this.alpha > 0;
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fillStyle = `hsla(${this.hue}, 100%, ${this.brightness}%, ${this.alpha})`;
+                ctx.fill();
+            }
+        }
+
+        // 动画循环：持续生成烟花
+        function animate() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.08)'; // 调整拖影，轨迹更柔和
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 提高烟花生成频率，画面更热闹
+            if (random(0, 10) > 7) {
+                fireworks.push(new Firework());
+            }
+
+            // 更新并绘制烟花
+            fireworks = fireworks.filter(firework => {
+                firework.update();
+                firework.draw();
+                return !firework.update();
+            });
+
+            // 更新并绘制粒子
+            particles = particles.filter(particle => {
+                particle.update();
+                particle.draw();
+                return particle.update();
+            });
+
+            requestAnimationFrame(animate);
+        }
+
+        // 启动动画
+        animate();
+
+        // 窗口适配
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+    </script>
+</body>
+</html>
